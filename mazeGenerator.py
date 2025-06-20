@@ -1,23 +1,28 @@
 import random
 from collections import deque
 
-def difficultSetup():
-    difficulty = int(input("Choose your difficulty(1~5)"))
-    return difficulty
-difficulty = difficultSetup()
-WIDTH, HEIGHT = (difficulty * 10 + 1), (difficulty * 6 + 5)
 WALL, PATH = 0, 1
 
-
 #初始化
-def initialize_maze():
-    maze = [[WALL for _ in range(WIDTH)] for _ in range(HEIGHT)]
+def initialize_maze(width, height):
+    maze = [[WALL for _ in range(width)] for _ in range(height)]
+
+
+def generate_maze_data(width, height):
+    
+    maze = [[WALL for _ in range(width)] for _ in range(height)]
+    start_x, start_y = create_start(maze, width, height)
+    carve(maze, start_x, start_y, width, height)
+    create_loop(maze, width, height)
+    exit_pos = find_farthest_exit(maze, start_x, start_y, width, height)
+    start = (start_x, start_y)
+    return maze, start, exit_pos
 
 
 #创造起点
-def create_start(maze):
-    randomx = random.randrange(int(HEIGHT - (HEIGHT / 3 * 2)), int(HEIGHT - (HEIGHT / 3)), 2)
-    randomy = random.randrange(int(WIDTH - (WIDTH / 3 * 2)), int(WIDTH - (WIDTH / 3)), 2)
+def create_start(maze, width, height):
+    randomx = random.randrange(int(height - (height / 3 * 2)), int(height - (height / 3)), 2)
+    randomy = random.randrange(int(width - (width / 3 * 2)), int(width - (width / 3)), 2)
     return randomx, randomy
 
 
@@ -26,13 +31,13 @@ def create_start(maze):
 #若Target周围确认都是WALL,没有PATH,则将n点与Target之间的WALL变成PATH
 
 #迷宫生成
-def carve(maze,x,y):
+def carve(maze,x,y, width, height):
     maze[x][y]= PATH
     dirs = [(0,2),(2,0),(0,-2),(-2,0)]#dy,dx从这里随机抽取一个方向
     random.shuffle(dirs)
     for dy, dx in dirs:
         nx, ny = x + dx, y + dy
-        if 0 < nx < HEIGHT and 0 < ny < WIDTH and maze[nx][ny] == WALL:#避免把PATH铺设到边界，以及确认目标点位是WALL
+        if 0 < nx < height and 0 < ny < width and maze[nx][ny] == WALL:#避免把PATH铺设到边界，以及确认目标点位是WALL
             surrounded = True
 
             for ddx in [-1,0,1]:
@@ -42,19 +47,19 @@ def carve(maze,x,y):
 
                     tx = nx + ddx
                     ty = ny + ddy
-                    if 0 <= tx < HEIGHT and 0 <= ty < WIDTH and maze[tx][ty]==PATH:#如果Target本身就是PATH，直接false
+                    if 0 <= tx < height and 0 <= ty < width and maze[tx][ty]==PATH:#如果Target本身就是PATH，直接false
                         surrounded = False
             if surrounded:
                 maze[x + dx//2][y + dy//2] = PATH #把n点与Target之间的WALL变成PATH
-                carve(maze,nx,ny)#旧的Target变成新的n点，寻找新的Target
+                carve(maze, nx, ny, width, height)#旧的Target变成新的n点，寻找新的Target
 
 #创造环路
-def create_loop(maze):
+def create_loop(maze, width, height):
     walls_can_be_use = []
 
-    for x in range(1, HEIGHT-1):
-        for y in range(1, WIDTH -1):
-            if maze[x][y] == WALL and can_convert_wall(maze,x,y):
+    for x in range(1, height-1):
+        for y in range(1, width -1):
+            if maze[x][y] == WALL and can_convert_wall(maze, x, y, width, height):
                 walls_can_be_use.append((x,y))
 
     random.shuffle(walls_can_be_use)
@@ -64,7 +69,7 @@ def create_loop(maze):
         if holes_created >= max_holes:
             break
 
-        if not will_form_open_area(maze,x,y):
+        if not will_form_open_area(maze,x,y, width, height):
             maze[x][y] = PATH
             holes_created += 1
 
@@ -72,7 +77,7 @@ def create_loop(maze):
 
 
 #打洞，形成环路
-def can_convert_wall(maze,x,y):
+def can_convert_wall(maze,x,y, width, height):
     if maze[x][y] != WALL:
         return False
     
@@ -82,7 +87,7 @@ def can_convert_wall(maze,x,y):
     orth_paths = 0
     for dy, dx in orth_direction:
         nx, ny= x+dx, y+dy
-        if 0 <= nx + HEIGHT and 0 <= ny < WIDTH and maze[nx][ny] == PATH:
+        if 0 <= nx + height and 0 <= ny < width and maze[nx][ny] == PATH:
                 orth_paths += 1
 
     #确保有两个以上的正交路径
@@ -93,7 +98,7 @@ def can_convert_wall(maze,x,y):
     for dx, dy in orth_direction:
         for distance in range(1,5): #检查4格距离
             nx, ny = x + dx * distance, y + dy * distance
-            if 0 <= nx < HEIGHT and 0 <= ny < WIDTH:
+            if 0 <= nx < height and 0 <= ny < width:
                 if maze[nx][ny] == PATH:
                     can_make_loop += 1
                     break
@@ -101,7 +106,7 @@ def can_convert_wall(maze,x,y):
     return can_make_loop >= 2
 
 #检查避免出现2x2以上的“路径面积”, 维持迷宫的线性特性
-def will_form_open_area(maze,x,y):
+def will_form_open_area(maze,x,y, width, height):
     #检查(x,y)为中心的3x3区域
     for dx in [-1, 0, 1]:
         for dy in [-1, 0, 1]:
@@ -109,7 +114,7 @@ def will_form_open_area(maze,x,y):
             for i in range(3):
                 for j in range(3):
                     tx, ty = x+dx+i, y+dy+j
-                    if 0 <= tx < HEIGHT and 0 <= ty < WIDTH:
+                    if 0 <= tx < height and 0 <= ty < width:
                         if maze[tx][ty] == PATH or (tx == x and ty == y):#是路径/将要打洞的位置
                             open_count += 1
 
@@ -120,23 +125,23 @@ def will_form_open_area(maze,x,y):
 
 
 #寻找距离起点最远的位置作为出口，利用DFS寻找所有最短路径，并在其中选择最长的
-def find_farthest_exit(maze, start_x, start_y):
-    distant_map = calculate_all_distances(maze, start_x, start_y)
+def find_farthest_exit(maze, start_x, start_y, width, height):
+    distant_map = calculate_all_distances(maze, start_x, start_y, width, height)
 
 #寻找四个边界的出口位置
     possible_exits = []
-    for y in range(1, WIDTH-1):
+    for y in range(1, width-1):
         if maze[1][y] == PATH:
             possible_exits.append((0, y))
-    for y in range(1, WIDTH-1):
-        if maze[HEIGHT-2][y] == PATH:
-            possible_exits.append((HEIGHT-1, y))
-    for x in range(1, HEIGHT-1):
+    for y in range(1, width-1):
+        if maze[height-2][y] == PATH:
+            possible_exits.append((height-1, y))
+    for x in range(1, height-1):
         if maze[x][1] == PATH:
             possible_exits.append((x, 0))
-    for x in range(1, HEIGHT-1):
-        if maze[x][WIDTH-2] == PATH:
-            possible_exits.append((x, WIDTH-1))
+    for x in range(1, height-1):
+        if maze[x][width-2] == PATH:
+            possible_exits.append((x, width-1))
         
     max_distance = -1
     farthest_exit = None
@@ -144,12 +149,12 @@ def find_farthest_exit(maze, start_x, start_y):
     for exit_x, exit_y in possible_exits:
         if exit_x == 0:  # 上边界
             distance = distant_map[1][exit_y]
-        elif exit_x == HEIGHT-1:  # 下边界
-            distance = distant_map[HEIGHT-2][exit_y]
+        elif exit_x == height-1:  # 下边界
+            distance = distant_map[height-2][exit_y]
         elif exit_y == 0:  # 左边界
             distance = distant_map[exit_x][1]
         else:  # 右边界
-            distance = distant_map[exit_x][WIDTH-2]
+            distance = distant_map[exit_x][width-2]
 
         if distance > max_distance:
             max_distance = distance
@@ -162,8 +167,8 @@ def find_farthest_exit(maze, start_x, start_y):
         return farthest_exit
     
     #利用BFS计算所有出口位置到起点的距离
-def calculate_all_distances(maze, start_x, start_y):
-    dist = [[-1] * WIDTH for _ in range(HEIGHT)]#创造一个width*height的，由-1填满的列表
+def calculate_all_distances(maze, start_x, start_y, width, height):
+    dist = [[-1] * width for _ in range(height)]#创造一个width*height的，由-1填满的列表
     dist[start_x][start_y] = 0 #将起点改为0
     queue = deque([(start_x, start_y)])
 
@@ -171,7 +176,7 @@ def calculate_all_distances(maze, start_x, start_y):
         x, y = queue.popleft()
         for dx, dy in [(0,1), (0,-1), (1,0), (-1,0)]:
             nx, ny = x+dx, y+dy
-            if 0 <= nx < HEIGHT and 0 <= ny < WIDTH: #确保在迷宫范围内
+            if 0 <= nx < height and 0 <= ny < width: #确保在迷宫范围内
                 if maze[nx][ny] == PATH and dist[nx][ny] == -1: #确认新位置是PATH，且没访问过
                     dist[nx][ny] = dist[x][y] + 1#更新该位置的状态
                     queue.append((nx, ny))
@@ -189,25 +194,5 @@ def print_maze(maze, start, exit_pos):
                 line += '  ' if cell == PATH else '██'
         print(line)
 
-def main():
-    # 创建迷宫数组
-    maze = [[WALL for _ in range(WIDTH)] for _ in range(HEIGHT)]
-    
-    # 创建起点
-    start_x, start_y = create_start(maze)
-    
-    # 生成迷宫主干
-    carve(maze, start_x, start_y)
-    
-    # 创建环状路径
-    loop_count = create_loop(maze)
-    print(f"创建了 {loop_count} 个环状路径")
-    
-    # 找到最远出口
-    exit_pos = find_farthest_exit(maze, start_x, start_y)
-    start = (start_x, start_y)
-    
-    # 打印迷宫
-    print_maze(maze, start, exit_pos)
 
-main()
+
